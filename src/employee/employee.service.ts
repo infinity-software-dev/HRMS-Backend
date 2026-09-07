@@ -15,6 +15,7 @@ import { GetDirectoryDto } from './dto/get-directory.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { LeaveService } from '../leave/leave.service';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class EmployeeService {
@@ -916,5 +917,272 @@ export class EmployeeService {
   }
 
 
+  async exportEmployeeMasterData(department?: string, status?: string): Promise<Buffer> {
+    // 1. Build Query (Exclude test account + Handle Optional Filters)
+    const query: any = { employeeCode: { $ne: 'IA11111' } };
+
+    if (department && department !== 'All') {
+      query.department = department;
+    }
+    if (status && status !== 'All') {
+      query.status = status;
+    }
+
+    // 2. Fetch Employees
+    const employees = await this.employeeModel
+      .find(query)
+      .populate('managerId', 'name')
+      .sort({ employeeCode: 1 })
+      .lean()
+      .exec();
+
+    if (!employees || employees.length === 0) {
+      throw new NotFoundException('No employees found matching the selected criteria.');
+    }
+
+    // 3. Initialize Workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Infinity Arthvishva HRMS';
+    const worksheet = workbook.addWorksheet('Employee Master Data', {
+      views: [{ state: 'frozen', ySplit: 4 }] // Freeze top headers
+    });
+
+    // 4. Define Columns logically grouped by category
+    worksheet.columns = [
+      // Basic Info
+      { header: 'Sr. No.', key: 'srNo', width: 8 },
+      { header: 'Employee Code', key: 'empCode', width: 15 },
+      { header: 'Full Name', key: 'name', width: 25 },
+      { header: 'Email ID', key: 'email', width: 30 },
+      { header: 'Mobile Number', key: 'mobile', width: 15 },
+      { header: 'Alt Mobile Number', key: 'altMobile', width: 15 },
+      { header: 'Gender', key: 'gender', width: 10 },
+      { header: 'Date of Birth', key: 'dob', width: 15 },
+      { header: 'Blood Group', key: 'bloodGroup', width: 12 },
+      { header: 'Marital Status', key: 'maritalStatus', width: 15 },
+
+      // Job Details
+      { header: 'Department', key: 'department', width: 20 },
+      { header: 'Designation', key: 'position', width: 20 },
+      { header: 'Role Type', key: 'role', width: 15 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Deactivate Reason', key: 'deactivateReason', width: 25 },
+      { header: 'Reporting Manager', key: 'manager', width: 25 },
+      { header: 'Joining Date', key: 'joiningDate', width: 15 },
+      { header: 'Last Working Date', key: 'lastWorkingDate', width: 15 },
+
+      // Compensation
+      { header: 'Basic Salary', key: 'basic', width: 15 },
+      { header: 'Fixed Allowance', key: 'allowance', width: 15 },
+      { header: 'Gross Salary', key: 'gross', width: 15 },
+
+      // Statutory & Banking
+      { header: 'PAN Number', key: 'pan', width: 15 },
+      { header: 'PAN Verified', key: 'panVerified', width: 12 },
+      { header: 'Aadhaar Number', key: 'aadhaar', width: 18 },
+      { header: 'Aadhaar Verified', key: 'aadhaarVerified', width: 15 },
+      { header: 'Bank Name', key: 'bankName', width: 20 },
+      { header: 'Account Holder Name', key: 'accName', width: 25 },
+      { header: 'Account Number', key: 'accNo', width: 20 },
+      { header: 'IFSC Code', key: 'ifsc', width: 15 },
+      { header: 'Branch', key: 'branch', width: 15 },
+      { header: 'Bank Verified', key: 'bankVerified', width: 12 },
+
+      // Experience & Education
+      { header: 'Experience Type', key: 'expType', width: 15 },
+      { header: 'Total Exp (Years)', key: 'totalExp', width: 15 },
+      { header: 'Last Company', key: 'lastCompany', width: 25 },
+      { header: 'HSC (%)', key: 'hsc', width: 12 },
+      { header: 'Graduation Course', key: 'gradCourse', width: 20 },
+      { header: 'Graduation (%)', key: 'gradPercent', width: 15 },
+      { header: 'PG Course', key: 'pgCourse', width: 20 },
+      { header: 'PG (%)', key: 'pgPercent', width: 12 },
+
+      // Addresses
+      { header: 'Current Address', key: 'currentAddr', width: 45 },
+      { header: 'Permanent Address', key: 'permanentAddr', width: 45 },
+
+      // Emergency Contact
+      { header: 'Emergency Contact Name', key: 'emgName', width: 25 },
+      { header: 'Emergency Relation', key: 'emgRelation', width: 20 },
+      { header: 'Emergency Mobile', key: 'emgMobile', width: 15 },
+
+      // Health Info
+      { header: 'Has Pre-existing Disease?', key: 'hasDisease', width: 20 },
+      { header: 'Disease Name', key: 'diseaseName', width: 20 },
+      { header: 'Disease Type', key: 'diseaseType', width: 20 },
+      { header: 'Medicines Required', key: 'medicines', width: 25 },
+      { header: 'Doctor Name', key: 'doctorName', width: 20 },
+      { header: 'Doctor Contact', key: 'doctorContact', width: 15 },
+    ];
+
+    // 5. Inject Titles
+    const filterText = `Department: ${department || 'All'} | Status: ${status || 'All'}`;
+
+    worksheet.spliceRows(1, 0, []);
+    worksheet.spliceRows(1, 0, [filterText]);
+    worksheet.spliceRows(1, 0, ['EMPLOYEE MASTER DATA REPORT']);
+
+    worksheet.mergeCells('A1:AX1'); // AX is the 50th column
+    worksheet.mergeCells('A2:AX2');
+
+    // 6. Format Helpers
+    const formatDate = (date?: Date) => date ? new Date(date).toLocaleDateString('en-IN') : '—';
+    const formatBool = (val?: boolean) => val ? 'Yes' : 'No';
+
+    // Address Combiner Logic
+    const formatAddress = (addrObj?: any) => {
+      if (!addrObj || !addrObj.address) return '—';
+      const parts = [addrObj.address, addrObj.city, addrObj.district, addrObj.state, addrObj.pinCode].filter(Boolean);
+      return parts.join(', ');
+    };
+
+    // 7. Populate Data
+    employees.forEach((emp: any, index) => {
+      const isSick = emp.hasDisease === 'Yes';
+
+      // Calculate dynamic gross
+      const basic = emp.salary || 0;
+      const allowance = emp.fixedAllowance || 0;
+      const gross = basic + allowance;
+
+      worksheet.addRow({
+        srNo: index + 1,
+        empCode: emp.employeeCode || '—',
+        name: emp.name || '—',
+        email: emp.email || '—',
+        mobile: emp.mobileNumber || '—',
+        altMobile: emp.alternateMobileNumber || '—',
+        gender: emp.gender || '—',
+        dob: formatDate(emp.dateOfBirth),
+        bloodGroup: emp.bloodGroup || '—',
+        maritalStatus: emp.maritalStatus || '—',
+
+        department: emp.department || '—',
+        position: emp.position || '—',
+        role: emp.role || '—',
+        status: emp.status || '—',
+        deactivateReason: emp.status === 'Inactive' ? (emp.deactivateReason || 'Not Specified') : '—',
+        manager: emp.managerId?.name || '—',
+        joiningDate: formatDate(emp.joiningDate),
+        lastWorkingDate: formatDate(emp.lastWorkingDate),
+
+        basic: basic,
+        allowance: allowance,
+        gross: gross,
+
+        pan: emp.panNumber || '—',
+        panVerified: formatBool(emp.panVerified),
+        aadhaar: emp.aadhaarNumber || '—',
+        aadhaarVerified: formatBool(emp.aadhaarVerified),
+        bankName: emp.bankName || '—',
+        accName: emp.accountHolderName || '—',
+        accNo: emp.accountNumber || '—',
+        ifsc: emp.ifsc || '—',
+        branch: emp.branch || '—',
+        bankVerified: formatBool(emp.bankVerified),
+
+        expType: emp.experienceType || '—',
+        totalExp: emp.totalExperienceYears || '—',
+        lastCompany: emp.lastCompanyName || '—',
+        hsc: emp.hscPercent || '—',
+        gradCourse: emp.graduationCourse || '—',
+        gradPercent: emp.graduationPercent || '—',
+        pgCourse: emp.postGraduationCourse || '—',
+        pgPercent: emp.postGraduationPercent || '—',
+
+        currentAddr: formatAddress(emp.address?.current),
+        permanentAddr: formatAddress(emp.address?.permanent),
+
+        emgName: emp.emergencyContactName || '—',
+        emgRelation: emp.emergencyContactRelationship || '—',
+        emgMobile: emp.emergencyContactMobile || '—',
+
+        hasDisease: emp.hasDisease || 'No',
+        diseaseName: isSick ? (emp.diseaseName || '—') : '—',
+        diseaseType: isSick ? (emp.diseaseType || '—') : '—',
+        medicines: isSick ? (emp.medicinesRequired || '—') : '—',
+        doctorName: isSick ? (emp.doctorName || '—') : '—',
+        doctorContact: isSick ? (emp.doctorContact || '—') : '—',
+      });
+    });
+
+    // 8. Brand Styling Definitions
+    const fontPrimary = { name: 'Nunito', size: 10 };
+    const fontTitle = { name: 'Nunito', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+    const fontHeader = { name: 'Nunito', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+
+    // Title Styling (Brand Blue)
+    const titleCell = worksheet.getCell('A1');
+    titleCell.font = fontTitle;
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2076C7' } }; // --color-brand-blue
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(1).height = 35;
+
+    // Subtitle Styling (Brand Green)
+    const subTitleCell = worksheet.getCell('A2');
+    subTitleCell.font = { name: 'Nunito', size: 11, bold: true, color: { argb: 'FF1CADA3' } }; // --color-brand-green
+    subTitleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+    subTitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(2).height = 25;
+
+    // Header Row Styling
+    const headerRow = worksheet.getRow(4);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = fontHeader;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2076C7' } }; // Brand Blue
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = {
+        top: { style: 'thin' }, bottom: { style: 'medium' },
+        left: { style: 'thin' }, right: { style: 'thin' }
+      };
+    });
+
+    // 9. Smart Text Alignment & Formatting
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber > 4) {
+        row.eachCell((cell, colNumber) => {
+          cell.font = fontPrimary;
+          cell.border = { bottom: { style: 'thin', color: { argb: 'FFF8FAFC' } } };
+
+          // Salary Columns (Basic, Allowance, Gross)
+          if (colNumber >= 19 && colNumber <= 21) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '₹#,##0.00';
+          }
+          // Centered Identifiers (Sr No, Code, PAN, IFSC, Dates, Booleans)
+          else if ([1, 2, 7, 8, 9, 10, 14, 17, 18, 22, 23, 24, 25, 29, 30].includes(colNumber)) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+          // Everything else (Names, Addresses, Long text)
+          else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
+      }
+    });
+
+    // 10. Dynamic Column Autofit
+    worksheet.columns.forEach((column) => {
+      let maxColumnLength = 0;
+      if (column.eachCell) {
+        column.eachCell((cell, rowNumber) => {
+          if (rowNumber >= 4) {
+            const formattedValue = cell.numFmt && typeof cell.value === 'number'
+              ? `₹${cell.value.toFixed(2)}`
+              : cell.value?.toString() || '';
+            if (formattedValue.length > maxColumnLength) {
+              maxColumnLength = formattedValue.length;
+            }
+          }
+        });
+      }
+      // Cap max width at 60 so addresses don't make the column absurdly wide
+      column.width = Math.min(Math.max(maxColumnLength + 4, 12), 60);
+    });
+
+    return await workbook.xlsx.writeBuffer() as unknown as Buffer;
+  }
 
 }

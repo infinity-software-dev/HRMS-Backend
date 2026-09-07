@@ -213,7 +213,6 @@ export class AttendanceService {
 
             // Calculate hurdles for both regular days and comp-offs
             const halfDayHurdle = shiftMinutes / 2;
-            const tenMinuteGrace = 10;
 
             //  NEW: Track the value of the token we need to mint
             let earnedCompOffValue = 0;
@@ -223,7 +222,7 @@ export class AttendanceService {
                 if (totalMinutes >= shiftMinutes) {
                     attendance.status = 'CompOff';
                     earnedCompOffValue = 1;
-                } else if ((totalMinutes + tenMinuteGrace) >= halfDayHurdle) {
+                } else if (totalMinutes >= halfDayHurdle) {
                     attendance.status = 'HalfCompOff';
                     earnedCompOffValue = 0.5;
                 } else {
@@ -235,7 +234,7 @@ export class AttendanceService {
                 if (totalMinutes >= shiftMinutes) {
                     attendance.status = 'P'; // Full Day
                 }
-                else if ((totalMinutes + tenMinuteGrace) >= halfDayHurdle) {
+                else if (totalMinutes >= halfDayHurdle) {
                     attendance.status = 'Half'; // Half Day
                 }
                 else {
@@ -1078,98 +1077,126 @@ export class AttendanceService {
     }
 
     async approveCorrection(attendanceId: string, adminId: string, remark: string = 'Approved by HR') {
-        const record = await this.attendanceModel.findById(attendanceId);
+        const session = await this.attendanceModel.db.startSession();
+        session.startTransaction();
 
-        if (!record) throw new NotFoundException('Attendance record not found');
-
-        if (record.correctionStatus !== 'Pending' || !record.activeCorrectionRequest) {
-            throw new BadRequestException('No pending correction request found for this record');
-        }
-
-        const request = record.activeCorrectionRequest!;
-
-        // 1. Apply requested corrections safely
-        if (request.requestedInTime) record.inTime = request.requestedInTime;
-        if (request.requestedOutTime) record.outTime = request.requestedOutTime;
-        if (request.requestedStatus) record.status = request.requestedStatus;
-
-        // 2. ─── LATE MINUTES CALCULATION MATRIX ───
-        if (record.inTime) {
-            // Dynamically create the 10:00:00 AM buffer limit for the specific historical date
-            // Format: YYYY-MM-DDT10:00:00+05:30 (Forces standard IST time evaluation)
-            const bufferLimit = new Date(`${record.date}T10:00:00+05:30`);
-
-            record.isLate = record.inTime > bufferLimit;
-            record.lateMinutes = record.isLate
-                ? Math.round((record.inTime.getTime() - bufferLimit.getTime()) / 60000)
-                : 0;
-        }
-
-        // 3. ─── DURATION & SHIFT STATUS CALCULATION ───
-        if (record.inTime && record.outTime) {
-            const diffMs = record.outTime.getTime() - record.inTime.getTime();
-            const totalMinutes = Math.floor(diffMs / 60000);
-
-            record.totalMinutes = totalMinutes;
-            record.totalHours = parseFloat((totalMinutes / 60).toFixed(2));
-
-            const rules = await this.systemConfigService.getShiftRulesForDate(record.date);
-            const isHoliday = false; // Add holiday logic if needed
-
-            if (rules.isSunday || isHoliday) {
-                if (totalMinutes >= rules.shiftMinutes) {
-                    record.status = 'CompOff';
-                } else if ((totalMinutes + rules.tenMinuteGrace) >= rules.halfDayHurdle) {
-                    record.status = 'HalfCompOff';
-                } else {
-                    record.status = 'P';
-                }
-            } else {
-                if (totalMinutes >= rules.shiftMinutes) {
-                    record.status = 'P';
-                } else if ((totalMinutes + rules.tenMinuteGrace) >= rules.halfDayHurdle) {
-                    record.status = 'Half';
-                } else {
-                    record.status = 'A';
-                }
-            }
-        }
-
-        // 4. Finalize the correction action
-        record.correctionStatus = 'Approved';
-        record.correctionHistory.push({
-            action: 'Approved',
-            byRole: 'HR',
-            byAdminId: new Types.ObjectId(adminId),
-            remark: remark,
-            timestamp: new Date()
-        });
-
-        await record.save();
-
-        // 5. ─── ASYNC NOTIFICATION DISPATCH ───
         try {
-            // Fetch the employee's name and FCM token
-            const employee = await this.employeeService.getEmployeeById(record.employeeId.toString(), 'name fcmToken');
+            const record = await this.attendanceModel
+                .findById(attendanceId)
+                .session(session);
 
-            if (employee && employee.fcmToken) {
-                this.notificationService.sendToEmployee({
-                    token: employee.fcmToken,
-                    title: "Correction Request Approved ✅",
-                    body: `Hi ${employee.name}, your attendance correction for ${record.date} was approved. Remark: ${remark}`,
-                    data: {
-                        type: "ATTENDANCE_CORRECTION_UPDATE",
-                        attendanceId: record._id.toString(),
-                        status: "Approved"
-                    }
-                }).catch(e => console.error("FCM Async Error:", e));
+            if (!record) throw new NotFoundException('Attendance record not found');
+
+            if (record.correctionStatus !== 'Pending' || !record.activeCorrectionRequest) {
+                throw new BadRequestException('No pending correction request found for this record');
             }
-        } catch (e) {
-            // Fails gracefully without breaking the HTTP response
-            console.error("Attendance correction approval notification dispatch failed:", e);
-        }
 
-        return record;
+            const request = record.activeCorrectionRequest!;
+
+            // 1. Apply requested working times
+            if (request.requestedInTime) record.inTime = request.requestedInTime;
+            if (request.requestedOutTime) record.outTime = request.requestedOutTime;
+
+            // 2. ─── LATE MINUTES CALCULATION MATRIX ───
+            if (record.inTime) {
+                const bufferLimit = new Date(`${record.date}T10:00:00+05:30`);
+                record.isLate = record.inTime > bufferLimit;
+                record.lateMinutes = record.isLate
+                    ? Math.round((record.inTime.getTime() - bufferLimit.getTime()) / 60000)
+                    : 0;
+            }
+
+            // 3. ─── DURATION, STATUS & COMP-OFF CALCULATION ───
+            let earnedCompOffValue = 0;
+            let isSundayOrHoliday = false;
+
+            if (record.inTime && record.outTime) {
+                const diffMs = record.outTime.getTime() - record.inTime.getTime();
+                const totalMinutes = Math.round(diffMs / 60000);
+
+                record.totalMinutes = totalMinutes;
+                record.totalHours = parseFloat((totalMinutes / 60).toFixed(2));
+
+                const rules = await this.systemConfigService.getShiftRulesForDate(record.date);
+                const isHoliday = await this.holidayService.checkIsHoliday(record.date);
+                isSundayOrHoliday = rules.isSunday || isHoliday;
+
+                if (isSundayOrHoliday) {
+                    if (totalMinutes >= rules.shiftMinutes) {
+                        record.status = 'CompOff';
+                        earnedCompOffValue = 1;
+                    } else if (totalMinutes >= rules.halfDayHurdle) {
+                        record.status = 'HalfCompOff';
+                        earnedCompOffValue = 0.5;
+                    } else {
+                        record.status = 'P';
+                        earnedCompOffValue = 0;
+                    }
+                } else {
+                    if (totalMinutes >= rules.shiftMinutes) {
+                        record.status = 'P';
+                    } else if (totalMinutes >= rules.halfDayHurdle) {
+                        record.status = 'Half';
+                    } else {
+                        record.status = 'A';
+                    }
+                }
+            }
+
+            // 4. ─── RECONCILE COMP-OFF TOKEN (SUNDAY / HOLIDAY) ───
+            if (isSundayOrHoliday) {
+                await this.leaveService.reconcileCompOff(
+                    record.employeeId.toString(),
+                    record._id.toString(),
+                    earnedCompOffValue,
+                    session
+                );
+            }
+
+            // 5. ─── FINALIZE AND COMMIT TRANSACTION ───
+            record.correctionStatus = 'Approved';
+            record.correctionHistory.push({
+                action: 'Approved',
+                byRole: 'HR',
+                byAdminId: new Types.ObjectId(adminId),
+                remark: remark,
+                timestamp: new Date()
+            });
+
+            await record.save({ session });
+            await session.commitTransaction();
+
+            // 6. ─── ASYNC NOTIFICATION DISPATCH (AFTER COMMIT) ───
+            try {
+                const employee = await this.employeeService.getEmployeeById(
+                    record.employeeId.toString(),
+                    'name fcmToken'
+                );
+
+                if (employee?.fcmToken) {
+                    this.notificationService.sendToEmployee({
+                        token: employee.fcmToken,
+                        title: "Correction Request Approved ✅",
+                        body: `Hi ${employee.name}, your attendance correction for ${record.date} was approved. Remark: ${remark}`,
+                        data: {
+                            type: "ATTENDANCE_CORRECTION_UPDATE",
+                            attendanceId: record._id.toString(),
+                            status: "Approved"
+                        }
+                    }).catch(e => console.error("FCM Async Error:", e));
+                }
+            } catch (e) {
+                console.error("Attendance correction approval notification dispatch failed:", e);
+            }
+
+            return record;
+
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
     }
 
     async rejectCorrection(attendanceId: string, adminId: string, remark: string) {
@@ -1339,7 +1366,6 @@ export class AttendanceService {
             throw new InternalServerErrorException('Failed to fetch historical ledger');
         }
     }
-
 
     // ─────────────────────────────────────── HR SEVICES END ──────────────────────────────────────────
 }

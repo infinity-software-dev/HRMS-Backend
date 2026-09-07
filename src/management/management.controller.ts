@@ -179,6 +179,37 @@ export class ManagementController {
     };
   }
 
+  @Get('employees/export/master-data')
+  async exportMasterData(
+    @Query('department') department: string,
+    @Query('status') status: string,
+    @Res() res: Response,
+  ) {
+    // 1. Generate the Excel Buffer from the service
+    const buffer = await this.employeeService.exportEmployeeMasterData(
+      department,
+      status
+    );
+
+    // 2. Generate a dynamic filename with the current date
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Employee_Master_Data_${dateStr}.xlsx`;
+
+    // 3. Set exactly the right headers for an Excel (.xlsx) file download
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename}"`
+    );
+    res.setHeader('Content-Length', buffer.length);
+
+    // 4. Send the buffer to the client
+    return res.send(buffer);
+  }
+
   // ─── 1. STATIC PATHS GO FIRST ───
   @Get('payroll/payrollList')
   async getPayrollList(

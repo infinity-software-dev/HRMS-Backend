@@ -754,7 +754,6 @@ export class LeaveService {
         return await this.leaveHistoryModel.aggregate(pipeline).exec();
     }
 
-
     // ─────────────────────────────────────── Director SEVICES END ──────────────────────────────────────────
 
 
@@ -793,6 +792,47 @@ export class LeaveService {
         }
 
         return await this.leaveLedgerModel.find(filter).sort({ createdAt: -1 });
+    }
+
+    async reconcileCompOff(
+        employeeId: string,
+        attendanceId: string,
+        newEarnedValue: number, // 1, 0.5, or 0
+        session?: any
+    ) {
+        const existingToken = await this.leaveLedgerModel
+            .findOne({
+                earnedFromAttendanceId: new Types.ObjectId(attendanceId),
+                leaveType: 'CompOff'
+            })
+            .session(session);
+
+        // Case 1: No token exists yet
+        if (!existingToken) {
+            if (newEarnedValue > 0) {
+                return await this.createCompOff(
+                    employeeId,
+                    { attendanceId, value: newEarnedValue },
+                    session
+                );
+            }
+            return null;
+        }
+
+        // Case 2 & 3: Token exists — only modify if status is strictly 'Active'
+        if (existingToken.status === 'Active') {
+            if (newEarnedValue > 0) {
+                existingToken.value = newEarnedValue;
+                await existingToken.save({ session });
+            } else {
+                // Hours fell below half day — expire the active token
+                existingToken.status = 'Expired';
+                await existingToken.save({ session });
+            }
+        }
+        // If status is 'Consumed', 'Locked', or already 'Expired', leave it untouched
+
+        return existingToken;
     }
 
     // HISTORY & DASHBOARD ──
