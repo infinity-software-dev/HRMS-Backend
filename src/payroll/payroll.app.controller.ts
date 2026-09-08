@@ -73,6 +73,12 @@ export class PayrollAppController {
 
   @Get('list')
   async getPayrollList(@Req() req: any, @Query() query: GetPayrollListQueryDto) {
+
+    // 1. Force the query to ignore any dates sent by the app frontend
+    delete query.startDate;
+    delete query.endDate;
+
+    // 2. Pass the sanitized query to the service
     const result = await this.payrollService.getPayrollList(req.user, query);
 
     return {
