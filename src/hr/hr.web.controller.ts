@@ -239,6 +239,28 @@ export class HrWebController {
     return this.employeeService.updateEmployeeProfile(id, employeeData, files);
   }
 
+  @Patch('employees/:id/kyc-status')
+  async updateKycStatus(
+    @Param('id') id: string,
+    @Body() kycData: {
+      aadhaarVerified?: boolean;
+      aadhaarNumber?: string;
+      aadhaarName?: string;
+      panVerified?: boolean;
+      panNumber?: string;
+      panName?: string;
+      panDob?: string;
+      bankVerified?: boolean;
+      accountNumber?: string;
+      ifsc?: string;
+      accountHolderName?: string;
+      bankName?: string;
+      branch?: string;
+    },
+  ) {
+    return this.employeeService.updateKycStatus(id, kycData);
+  }
+
   // Approve an incoming claim
   @Patch('reimbursement/:id/approve')
   async approveReimbursement(

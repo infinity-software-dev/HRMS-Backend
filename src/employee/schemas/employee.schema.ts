@@ -246,7 +246,16 @@ export class Employee extends Document {
     aadhaarVerifiedDate?: Date;
 
     @Prop()
+    aadhaarName?: string;
+
+    @Prop()
     panVerifiedDate?: Date;
+
+    @Prop()
+    panName?: string;
+
+    @Prop()
+    panDob?: string;
 
     // ── EMERGENCY CONTACT ──
     @Prop()

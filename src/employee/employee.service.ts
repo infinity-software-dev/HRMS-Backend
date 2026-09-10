@@ -634,6 +634,22 @@ export class EmployeeService {
         rawData.isLeadershipRole === 'true' ||
         rawData.isLeadershipRole === true,
 
+      ...(rawData.aadhaarVerified !== undefined && {
+        aadhaarVerified: rawData.aadhaarVerified === 'true' || rawData.aadhaarVerified === true,
+        ...((rawData.aadhaarVerified === 'true' || rawData.aadhaarVerified === true) && { aadhaarVerifiedDate: new Date() }),
+      }),
+      ...(rawData.aadhaarName !== undefined && { aadhaarName: rawData.aadhaarName }),
+      ...(rawData.panVerified !== undefined && {
+        panVerified: rawData.panVerified === 'true' || rawData.panVerified === true,
+        ...((rawData.panVerified === 'true' || rawData.panVerified === true) && { panVerifiedDate: new Date() }),
+      }),
+      ...(rawData.panName !== undefined && { panName: rawData.panName }),
+      ...(rawData.panDob !== undefined && { panDob: rawData.panDob }),
+      ...(rawData.bankVerified !== undefined && {
+        bankVerified: rawData.bankVerified === 'true' || rawData.bankVerified === true,
+        ...((rawData.bankVerified === 'true' || rawData.bankVerified === true) && { bankVerifiedDate: new Date() }),
+      }),
+
       // Strictly parse as numbers and fallback to 0
       salary: rawData.salary && !isNaN(Number(rawData.salary))
         ? Number(rawData.salary)
@@ -759,6 +775,21 @@ export class EmployeeService {
       ...(castedManagerId && { managerId: castedManagerId }),
       isAppAdmin: rawData.isAppAdmin === 'true' || rawData.isAppAdmin === true,
       isLeadershipRole: rawData.isLeadershipRole === 'true' || rawData.isLeadershipRole === true,
+      ...(rawData.aadhaarVerified !== undefined && {
+        aadhaarVerified: rawData.aadhaarVerified === 'true' || rawData.aadhaarVerified === true,
+        ...((rawData.aadhaarVerified === 'true' || rawData.aadhaarVerified === true) && { aadhaarVerifiedDate: new Date() }),
+      }),
+      ...(rawData.aadhaarName !== undefined && { aadhaarName: rawData.aadhaarName }),
+      ...(rawData.panVerified !== undefined && {
+        panVerified: rawData.panVerified === 'true' || rawData.panVerified === true,
+        ...((rawData.panVerified === 'true' || rawData.panVerified === true) && { panVerifiedDate: new Date() }),
+      }),
+      ...(rawData.panName !== undefined && { panName: rawData.panName }),
+      ...(rawData.panDob !== undefined && { panDob: rawData.panDob }),
+      ...(rawData.bankVerified !== undefined && {
+        bankVerified: rawData.bankVerified === 'true' || rawData.bankVerified === true,
+        ...((rawData.bankVerified === 'true' || rawData.bankVerified === true) && { bankVerifiedDate: new Date() }),
+      }),
 
       salary: rawData.salary && !isNaN(Number(rawData.salary)) ? Number(rawData.salary) : undefined,
       fixedAllowance: rawData.fixedAllowance && !isNaN(Number(rawData.fixedAllowance)) ? Number(rawData.fixedAllowance) : undefined,
@@ -813,6 +844,92 @@ export class EmployeeService {
       console.error('Update failed:', dbError);
       throw new BadRequestException(`Database update failed: ${dbError.message}`);
     }
+  }
+
+  async updateKycStatus(id: string, kycData: {
+    aadhaarVerified?: boolean;
+    aadhaarNumber?: string;
+    aadhaarName?: string;
+    panVerified?: boolean;
+    panNumber?: string;
+    panName?: string;
+    panDob?: string;
+    bankVerified?: boolean;
+    accountNumber?: string;
+    ifsc?: string;
+    accountHolderName?: string;
+    bankName?: string;
+    branch?: string;
+  }) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid employee ID format.');
+    }
+
+    const update: any = {};
+    if (kycData.aadhaarVerified !== undefined) {
+      update.aadhaarVerified = Boolean(kycData.aadhaarVerified);
+      if (update.aadhaarVerified) {
+        update.aadhaarVerifiedDate = new Date();
+      }
+    }
+    if (kycData.aadhaarNumber) {
+      update.aadhaarNumber = kycData.aadhaarNumber;
+    }
+    if (kycData.aadhaarName) {
+      update.aadhaarName = kycData.aadhaarName;
+    }
+    if (kycData.panVerified !== undefined) {
+      update.panVerified = Boolean(kycData.panVerified);
+      if (update.panVerified) {
+        update.panVerifiedDate = new Date();
+      }
+    }
+    if (kycData.panNumber) {
+      update.panNumber = kycData.panNumber;
+    }
+    if (kycData.panName) {
+      update.panName = kycData.panName;
+    }
+    if (kycData.panDob) {
+      update.panDob = kycData.panDob;
+    }
+    if (kycData.bankVerified !== undefined) {
+      update.bankVerified = Boolean(kycData.bankVerified);
+      if (update.bankVerified) {
+        update.bankVerifiedDate = new Date();
+      }
+    }
+    if (kycData.accountNumber) {
+      update.accountNumber = kycData.accountNumber;
+    }
+    if (kycData.ifsc) {
+      update.ifsc = kycData.ifsc;
+    }
+    if (kycData.accountHolderName) {
+      update.accountHolderName = kycData.accountHolderName;
+    }
+    if (kycData.bankName) {
+      update.bankName = kycData.bankName;
+    }
+    if (kycData.branch) {
+      update.branch = kycData.branch;
+    }
+
+    const updated = await this.employeeModel.findByIdAndUpdate(
+      id,
+      { $set: update },
+      { returnDocument: 'after' }
+    );
+
+    if (!updated) {
+      throw new NotFoundException(`Employee with ID ${id} not found.`);
+    }
+
+    return {
+      success: true,
+      message: 'KYC status updated successfully',
+      data: updated,
+    };
   }
 
   async getManagerApprovalMetrics(managerId: string) {

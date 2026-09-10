@@ -20,6 +20,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ReimbursementModule } from './reimbursement/reimbursement.module';
 import { DirectorModule } from './director/director.module';
 import { ManagementModule } from './management/management.module';
+import { KycModule } from './kyc/kyc.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -74,6 +75,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     DirectorModule,
 
     ManagementModule,
+
+    KycModule,
   ],
   controllers: [AppController],
   providers: [AppService],
