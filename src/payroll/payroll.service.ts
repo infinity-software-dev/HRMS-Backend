@@ -151,7 +151,7 @@ export class PayrollService {
       } else {
         if (record && !hasCheckedOut) {
           dayStatus = 'Absent';
-        }else if (record && record.status === 'P') {
+        } else if (record && record.status === 'P') {
           dayStatus = 'Present';
         } else if (record && record.status === 'Half') {
           if (leaveRecord && leaveRecord.leaveCategory === 'Paid') {
@@ -166,6 +166,8 @@ export class PayrollService {
         } else if (leaveRecord) {
           if (leaveRecord.leaveCategory === 'Paid') {
             dayStatus = leaveRecord.isHalfDay ? 'HalfPaidLeave_HalfAbsent' : 'PaidLeave';
+          } else if (leaveRecord.leaveCategory === 'CompOff') {
+            dayStatus = leaveRecord.isHalfDay ? 'HalfCompOff' : 'CompOff';
           } else {
             dayStatus = 'Absent';
           }
