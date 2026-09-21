@@ -24,9 +24,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AttendanceService } from '../attendance/attendance.service';
 import { EmployeeService } from '../employee/employee.service';
 import { LeaveService } from '../leave/leave.service';
-import {
-  FileFieldsInterceptor,
-} from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import 'multer';
 
 import { PayrollService } from '../payroll/payroll.service';
@@ -40,8 +38,13 @@ import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UpsertAlertDto } from '../alert/dto/upsert-alert.dto';
 import { AlertService } from '../alert/alert.service';
 import { GurukulService } from '../gurukul/gurukul.service';
+import { DepartmentService } from '../department/department.service';
 import { GetVideosDto } from '../gurukul/dto/get-videos.dto';
-import { CreateVideoDto, UpdateVideoDto } from '../gurukul/dto/create-gurukul.dto';
+import { PositionService } from '../position/position.service';
+import {
+  CreateVideoDto,
+  UpdateVideoDto,
+} from '../gurukul/dto/create-gurukul.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/web/hr')
@@ -60,7 +63,9 @@ export class HrWebController {
     private readonly alertService: AlertService,
 
     private readonly gurukulService: GurukulService,
-  ) { }
+    private readonly departmentService: DepartmentService,
+    private readonly positionService: PositionService,
+  ) {}
 
   @Patch('attendance/corrections/:id/approve')
   async approveCorrection(@Param('id') attendanceId: string, @Req() req: any) {
@@ -76,7 +81,7 @@ export class HrWebController {
   async rejectCorrection(
     @Param('id') attendanceId: string,
     @Body('remark') remark: string,
-    @Req() req: any
+    @Req() req: any,
   ) {
     const adminId = req.user.sub;
 
@@ -86,7 +91,11 @@ export class HrWebController {
     }
 
     // Pass the extracted remark into the service
-    await this.attendanceService.rejectCorrection(attendanceId, adminId, remark.trim());
+    await this.attendanceService.rejectCorrection(
+      attendanceId,
+      adminId,
+      remark.trim(),
+    );
 
     return { success: true, message: 'Correction rejected successfully' };
   }
@@ -242,7 +251,8 @@ export class HrWebController {
   @Patch('employees/:id/kyc-status')
   async updateKycStatus(
     @Param('id') id: string,
-    @Body() kycData: {
+    @Body()
+    kycData: {
       aadhaarVerified?: boolean;
       aadhaarNumber?: string;
       aadhaarName?: string;
@@ -263,13 +273,12 @@ export class HrWebController {
 
   // Approve an incoming claim
   @Patch('reimbursement/:id/approve')
-  async approveReimbursement(
-    @Param('id') id: string,
-    @Req() req: any
-  ) {
+  async approveReimbursement(@Param('id') id: string, @Req() req: any) {
     const hrId = req.user.employeeId;
     if (!hrId) {
-      throw new BadRequestException('HR operator identification context missing');
+      throw new BadRequestException(
+        'HR operator identification context missing',
+      );
     }
     return await this.reimbursementService.approveClaimByHr(id, hrId);
   }
@@ -279,15 +288,20 @@ export class HrWebController {
   async rejectReimbursement(
     @Param('id') id: string,
     @Body() body: { rejectionReason: string },
-    @Req() req: any
+    @Req() req: any,
   ) {
     const hrId = req.user.employeeId;
     if (!hrId) {
-      throw new BadRequestException('HR operator identification context missing');
+      throw new BadRequestException(
+        'HR operator identification context missing',
+      );
     }
-    return await this.reimbursementService.rejectClaimByHr(id, hrId, body.rejectionReason);
+    return await this.reimbursementService.rejectClaimByHr(
+      id,
+      hrId,
+      body.rejectionReason,
+    );
   }
-
 
   @Get('get-profile')
   @HttpCode(HttpStatus.OK)
@@ -304,7 +318,6 @@ export class HrWebController {
     return await this.hrService.changeMasterPassword(changePasswordDto);
   }
 
-
   // ─── GET LIVE COMPLAINTS (Pending, Acknowledged, In Review) ───
   @Get('complaints/live')
   async getLiveComplaints(@Query('search') search?: string) {
@@ -312,11 +325,9 @@ export class HrWebController {
   }
 
   @Get('complaints/historical')
-  async getHistoricalComplaints(
-    @Query('search') search?: string) {
+  async getHistoricalComplaints(@Query('search') search?: string) {
     return await this.complaintService.getHistoricalComplaintsForHr(search);
   }
-
 
   @Patch('complaints/:id/status')
   async updateComplaintStatus(
@@ -341,7 +352,6 @@ export class HrWebController {
 
   @Post('holidays')
   async create(@Body() createHolidayDto: CreateHolidayDto, @Req() req: any) {
-
     const data = await this.holidayService.create(createHolidayDto);
     return { success: true, message: 'Holiday added to calendar', data };
   }
@@ -355,10 +365,11 @@ export class HrWebController {
 
   @Post('announcements/upsert')
   @ApiOperation({ summary: 'Create or update an announcement (HR/Admin)' })
-  @ApiResponse({ status: 201, description: 'The alert has been successfully saved.' })
-  async upsertGlobalAlert(
-    @Body() dto: UpsertAlertDto
-  ) {
+  @ApiResponse({
+    status: 201,
+    description: 'The alert has been successfully saved.',
+  })
+  async upsertGlobalAlert(@Body() dto: UpsertAlertDto) {
     // The service handles resolving the HR employeeId automatically via getMasterProfile
     const updatedAlert = await this.alertService.upsertAlert(dto);
 
@@ -377,7 +388,10 @@ export class HrWebController {
   }
 
   @Put('gurukul/videos/:id')
-  async updateVideo(@Param('id') id: string, @Body() updateVideoDto: UpdateVideoDto) {
+  async updateVideo(
+    @Param('id') id: string,
+    @Body() updateVideoDto: UpdateVideoDto,
+  ) {
     return await this.gurukulService.updateVideo(id, updateVideoDto);
   }
 
@@ -386,4 +400,73 @@ export class HrWebController {
     return await this.gurukulService.deleteVideo(id);
   }
 
+  // APIs for Department Management
+
+  @Post('create-department')
+  async createDepartment(@Body('name') name: string) {
+    return this.departmentService.create(name);
+  }
+
+  @Get('get-all-departments')
+  async getAllDepartments() {
+    return this.departmentService.findAll();
+  }
+
+  @Get('get-active-departments')
+  async getActiveDepartments() {
+    return this.departmentService.findAllActive();
+  }
+
+  // UPDATE DEPARTMENT
+  @Put('update-department/:id')
+  async updateDepartment(@Param('id') id: string, @Body('name') name: string) {
+    return this.departmentService.update(id, name);
+  }
+
+  // DELETE DEPARTMENT
+  @Delete('delete-department/:id')
+  async deleteDepartment(@Param('id') id: string) {
+    return this.departmentService.remove(id);
+  }
+
+  // RESTORE DEPARTMENT
+  @Patch('restore-department/:id')
+  async restoreDepartment(@Param('id') id: string) {
+    return this.departmentService.restore(id);
+  }
+
+  // APIs for Position Management
+
+  @Post('create-position')
+  async createPosition(@Body('name') name: string) {
+    return this.positionService.create(name);
+  }
+
+  @Get('get-all-positions')
+  async getAllPositions() {
+    return this.positionService.findAll();
+  }
+
+  @Get('get-active-positions')
+  async getActivePositions() {
+    return this.positionService.findAllActive();
+  }
+
+  // UPDATE POSITION
+  @Put('update-position/:id')
+  async updatePosition(@Param('id') id: string, @Body('name') name: string) {
+    return this.positionService.update(id, name);
+  }
+
+  // DELETE POSITION
+  @Delete('delete-position/:id')
+  async deletePosition(@Param('id') id: string) {
+    return this.positionService.remove(id);
+  }
+
+  // RESTORE POSITION
+  @Patch('restore-position/:id')
+  async restorePosition(@Param('id') id: string) {
+    return this.positionService.restore(id);
+  }
 }

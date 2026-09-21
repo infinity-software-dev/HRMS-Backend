@@ -12,10 +12,14 @@ import { ComplaintModule } from '../complaint/complaint.module';
 import { HolidayModule } from '../holiday/holiday.module';
 import { AlertModule } from '../alert/alert.module';
 import { GurukulModule } from '../gurukul/gurukul.module';
+import { DepartmentModule } from '../department/department.module';
+import { PositionModule } from '../position/position.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: HrProfile.name, schema: HrProfileSchema }]),
+    MongooseModule.forFeature([
+      { name: HrProfile.name, schema: HrProfileSchema },
+    ]),
     EmployeeModule,
     AttendanceModule,
     LeaveModule,
@@ -25,9 +29,11 @@ import { GurukulModule } from '../gurukul/gurukul.module';
     forwardRef(() => AlertModule),
     forwardRef(() => HolidayModule),
     forwardRef(() => GurukulModule),
+    DepartmentModule,
+    PositionModule,
   ],
   controllers: [HrWebController],
   providers: [HrService],
-  exports: [HrService]
+  exports: [HrService],
 })
-export class HrModule { }
+export class HrModule {}

@@ -22,6 +22,11 @@ import { DirectorModule } from './director/director.module';
 import { ManagementModule } from './management/management.module';
 import { KycModule } from './kyc/kyc.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DepartmentController } from './department/department.controller';
+import { DepartmentModule } from './department/department.module';
+import { PositionController } from './position/position.controller';
+
+import { PositionModule } from './position/position.module';
 
 @Module({
   imports: [
@@ -77,8 +82,12 @@ import { ScheduleModule } from '@nestjs/schedule';
     ManagementModule,
 
     KycModule,
+
+    DepartmentModule,
+
+    PositionModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, DepartmentController, PositionController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}
