@@ -239,10 +239,38 @@ export class KycService {
             throw new BadRequestException(data?.message || 'Bank account verification failed');
         }
 
+        const resultData = data?.data ?? data;
+
+        // Strict verification checks
+        if (resultData.account_exists === false || String(resultData.account_exists).toLowerCase() === 'false') {
+            throw new BadRequestException('Bank account does not exist or is invalid.');
+        }
+
+        const nameAtBank = String(
+            resultData.name_at_bank ||
+            resultData.registered_name ||
+            resultData.full_name ||
+            resultData.beneficiary_name ||
+            ''
+        ).trim();
+
+        if (accountHolderName?.trim() && nameAtBank) {
+            const cleanBankWords = nameAtBank.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+            const cleanEmpWords = accountHolderName.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+
+            const hasCommonWord = cleanBankWords.some((w: string) => cleanEmpWords.includes(w));
+            if (!hasCommonWord) {
+                throw new BadRequestException(
+                    `Bank account belongs to "${nameAtBank}", which does not match "${accountHolderName}". Verification failed.`
+                );
+            }
+        }
+
         return {
             success: true,
             message: 'Bank account verified successfully.',
-            data: data?.data ?? data,
+            data: resultData,
+            verified_name: nameAtBank || accountHolderName,
         };
     }
 }
