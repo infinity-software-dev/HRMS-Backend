@@ -32,27 +32,25 @@ export class LeaveService {
         // 'en-CA' outputs ISO standard "YYYY-MM-DD"
         const istDateString = new Date().toLocaleDateString('en-CA', {
             timeZone: 'Asia/Kolkata',
-        }); // Returns "2026-09-01" at 00:00 IST
+        }); // Returns "2026-10-01" at 00:00 IST
 
         const [currentYear, currentMonth] = istDateString.split('-');
-        const fixedAllowanceMonth = `${currentYear}-${currentMonth}`; // "2026-09"
+        const fixedAllowanceMonth = `${currentYear}-${currentMonth}`; // "2026-10"
 
-        // 2. Calculate 6-month cutoff based on IST date
+        // 2. Calculate exact 6-month cutoff for Scenario A
         const cutoffYear = Number(currentYear);
         const cutoffMonth = Number(currentMonth) - 1; // 0-indexed month
 
-        // Create date at 23:59:59.999 IST 6 months ago
-        // IST is UTC+05:30 -> ISO string adjustment
-        const sixMonthsAgo = new Date(Date.UTC(cutoffYear, cutoffMonth - 6, 1));
-        const sixMonthsAgoCutoff = new Date(
-            sixMonthsAgo.getFullYear(),
-            sixMonthsAgo.getMonth() + 1,
-            0,
-            23,
-            59,
-            59,
-            999,
-        );
+        // Target: 1st day of the month, exactly 6 months ago, at 23:59:59.999 IST.
+        // Since IST is UTC+05:30, we subtract 5.5 hours from 23:59:59.999
+        // which results in 18:29:59.999 UTC.
+        // Date.UTC safely handles negative month calculations (e.g., crossing years).
+        const sixMonthsAgoCutoff = new Date(Date.UTC(
+            cutoffYear,
+            cutoffMonth - 6,
+            1,              // The 1st day of the month
+            18, 29, 59, 999 // Equivalent to 23:59:59.999 IST
+        ));
 
         const session = await this.leaveLedgerModel.db.startSession();
 
