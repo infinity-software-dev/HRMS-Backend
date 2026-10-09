@@ -485,7 +485,7 @@ export class EmployeeService {
       this.employeeModel
         .find(query)
         .select(
-          'employeeCode name email department position status profileImageUrl managerId',
+          'employeeCode name email department position status profileImageUrl managerId joiningDate salary fixedAllowance',
         )
         .populate('managerId', 'name')
         .sort({ employeeCode: 1 })
@@ -506,6 +506,8 @@ export class EmployeeService {
       status: emp.status,
       profileImageUrl: emp.profileImageUrl,
       managerName: emp.managerId?.name || undefined,
+      joiningDate: emp.joiningDate || undefined,
+      salary: ((emp.salary || 0) + (emp.fixedAllowance || 0)) || undefined,
     }));
 
     // 6. Return structured response with Meta

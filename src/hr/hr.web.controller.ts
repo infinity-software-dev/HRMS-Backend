@@ -469,4 +469,35 @@ export class HrWebController {
   async restorePosition(@Param('id') id: string) {
     return this.positionService.restore(id);
   }
+
+
+
+  // ADD SINGLE RESPONSIBILITY
+  @Post('position/:id/responsibility')
+  async addPositionResponsibility(
+    @Param('id') id: string,
+    @Body('responsibility') responsibility: string,
+  ) {
+    return this.positionService.addResponsibility(id, responsibility);
+  }
+
+  // EDIT SINGLE RESPONSIBILITY
+  @Put('position/:id/responsibility/:index')
+  async editPositionResponsibility(
+    @Param('id') id: string,
+    @Param('index') index: string,
+    @Body('responsibility') responsibility: string,
+  ) {
+    return this.positionService.editResponsibility(id, parseInt(index, 10), responsibility);
+  }
+
+  // DELETE SINGLE RESPONSIBILITY
+  @Delete('position/:id/responsibility/:index')
+  async deletePositionResponsibility(
+    @Param('id') id: string,
+    @Param('index') index: string,
+  ) {
+    return this.positionService.removeResponsibility(id, parseInt(index, 10));
+  }
+
 }

@@ -12,7 +12,7 @@ export class PositionService {
   constructor(
     @InjectModel(Position.name)
     private positionModel: Model<PositionDocument>,
-  ) {}
+  ) { }
 
   // CREATE
   async create(name: string): Promise<Position> {
@@ -43,7 +43,7 @@ export class PositionService {
       .exec();
   }
 
-  // UPDATE
+  // UPDATE NAME
   async update(id: string, name: string): Promise<Position> {
     try {
       const position = await this.positionModel
@@ -59,13 +59,48 @@ export class PositionService {
       if (error.code === 11000) {
         throw new ConflictException('Position already exists');
       }
-
       if (error instanceof NotFoundException) {
         throw error;
       }
-
       throw error;
     }
+  }
+
+
+
+  // ADD SINGLE RESPONSIBILITY
+  async addResponsibility(id: string, responsibility: string): Promise<Position> {
+    const position = await this.positionModel.findById(id).exec();
+    if (!position) throw new NotFoundException('Position not found');
+    if (!position.responsibilities) position.responsibilities = [];
+    if (!position.responsibilities.includes(responsibility)) {
+      position.responsibilities.push(responsibility);
+    }
+    return await position.save();
+  }
+
+  // EDIT SINGLE RESPONSIBILITY
+  async editResponsibility(id: string, index: number, newResponsibility: string): Promise<Position> {
+    const position = await this.positionModel.findById(id).exec();
+    if (!position) throw new NotFoundException('Position not found');
+    if (position.responsibilities && position.responsibilities.length > index) {
+      position.responsibilities[index] = newResponsibility;
+      position.markModified('responsibilities');
+      return await position.save();
+    }
+    return position;
+  }
+
+  // REMOVE SINGLE RESPONSIBILITY
+  async removeResponsibility(id: string, index: number): Promise<Position> {
+    const position = await this.positionModel.findById(id).exec();
+    if (!position) throw new NotFoundException('Position not found');
+    if (position.responsibilities && position.responsibilities.length > index) {
+      position.responsibilities.splice(index, 1);
+      position.markModified('responsibilities');
+      return await position.save();
+    }
+    return position;
   }
 
   // DELETE - Soft Delete
@@ -78,9 +113,7 @@ export class PositionService {
       throw new NotFoundException('Position not found');
     }
 
-    return {
-      message: 'Position deleted successfully',
-    };
+    return { message: 'Position deleted successfully' };
   }
 
   // RESTORE - Undo Soft Delete

@@ -681,6 +681,8 @@ export class AttendanceService {
         attendance.activeCorrectionRequest = {
             requestedInTime: dto.requestedInTime ? new Date(dto.requestedInTime) : undefined,
             requestedOutTime: dto.requestedOutTime ? new Date(dto.requestedOutTime) : undefined,
+            originalInTime: attendance.inTime,
+            originalOutTime: attendance.outTime,
             reason: dto.reason,
             proofUrl: dto.proofUrl || '',
             requestedOn: getIST() as Date,
@@ -1052,8 +1054,8 @@ export class AttendanceService {
                         avatar: { $ifNull: ['$employeeData.profileImageUrl', ''] },
 
                         // Original Times
-                        originalInTime: '$inTime',
-                        originalOutTime: '$outTime',
+                        originalInTime: { $ifNull: ['$activeCorrectionRequest.originalInTime', '$inTime'] },
+                        originalOutTime: { $ifNull: ['$activeCorrectionRequest.originalOutTime', '$outTime'] },
                         originalStatus: '$status',
 
                         // Requested Times

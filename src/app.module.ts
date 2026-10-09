@@ -25,8 +25,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { DepartmentController } from './department/department.controller';
 import { DepartmentModule } from './department/department.module';
 import { PositionController } from './position/position.controller';
-
 import { PositionModule } from './position/position.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -46,48 +46,30 @@ import { PositionModule } from './position/position.module';
     }),
 
     ScheduleModule.forRoot(),
-
     EmployeeModule,
-
     LeaveModule,
-
     AlertModule,
-
     AuthModule,
-
     GurukulModule,
-
     ComplaintModule,
-
     HolidayModule,
-
     AttendanceModule,
-
     PayrollModule,
-
     SystemConfigModule,
-
     ResignationModule,
-
     HrModule,
-
     NotificationsModule,
-
     CloudinaryModule,
-
     ReimbursementModule,
-
     DirectorModule,
-
     ManagementModule,
-
     KycModule,
-
     DepartmentModule,
-
     PositionModule,
+    MailModule,
   ],
   controllers: [AppController, DepartmentController, PositionController],
   providers: [AppService],
+
 })
-export class AppModule {}
+export class AppModule { }

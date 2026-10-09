@@ -26,6 +26,12 @@ export class CorrectionRequestData {
     @Prop()
     requestedOutTime?: Date;
 
+    @Prop()
+    originalInTime?: Date;
+
+    @Prop()
+    originalOutTime?: Date;
+
     @Prop({ enum: ['P', 'Half', 'Coff', 'A'] })
     requestedStatus?: string;
 

@@ -11,6 +11,9 @@ export class Position {
   @Prop({ default: true })
   isActive!: boolean;
 
+  @Prop({ type: [String], default: [] })
+  responsibilities!: string[];
+
   createdAt!: Date;
   updatedAt!: Date;
 }
