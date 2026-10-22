@@ -14,7 +14,6 @@ import { LeaveService } from '../leave/leave.service';
 import { HolidayService } from '../holiday/holiday.service';
 
 import {
-  calculateSalarySplit,
   calculatePT,
   calculateProratedAmount,
 } from '../utils/payroll.helper';
@@ -276,7 +275,7 @@ export class PayrollService {
       }
     }
 
-    // --- PHASE 4: APPLY MATH (Updated for Reimbursements) ---
+    // --- PHASE 4: APPLY MATH (Updated for Prorated Allowances) ---
     const paidDays =
       present +
       compOffCount +
@@ -287,12 +286,13 @@ export class PayrollService {
     const leavesTaken = absent + half * 0.5;
 
     const basic = employee.salary || 0;
+    const raw_allowance = employee.fixedAllowance || 0;
 
-    // 1. Only Prorate the Basic Salary
+    // 1. Prorate the Basic Salary
     const pr_basic = calculateProratedAmount(basic, totalCycleDays, paidDays);
 
-    // 2. Allowance remains a flat amount (not calculated per day)
-    const flat_allowance = employee.fixedAllowance || 0;
+    // 2. Prorate the Allowance (THE FIX: Now prorated based on paidDays)
+    const pr_allowance = calculateProratedAmount(raw_allowance, totalCycleDays, paidDays);
 
     // 3. Tally Reimbursements (Non-taxable addition)
     const totalReimbursementAmount = unpaidClaims.reduce(
@@ -301,17 +301,17 @@ export class PayrollService {
     );
     const reimbursementClaimIds = unpaidClaims.map(claim => claim._id);
 
-    // 4. Calculate PT based STRICTLY on the raw 'basic' salary, ignoring the allowance entirely
+    // 4. Calculate Gross Salary (Prorated Basic + Prorated Allowance)
+    const totalGross = pr_basic + pr_allowance;
+
+    // 5. Calculate PT based on the PRORATED GROSS
     const professionalTax = calculatePT(
-      basic,
+      totalGross,
       employee.gender,
       toDate.getUTCMonth(),
     );
 
-    // 5. Calculate Gross and Net
-    const totalGross = pr_basic + flat_allowance;
-
-    // Add reimbursements AFTER taxes, as they are tax-exempt refunds to the employee
+    // 6. Net Salary: Deduct PT from Gross, then add tax-exempt reimbursements
     const netSalary = Math.max(0, totalGross - professionalTax) + totalReimbursementAmount;
 
     return {
@@ -335,14 +335,14 @@ export class PayrollService {
       paidDays,
       paidDaysBreakdown,
       earnings: {
-        basic: basic,
-        allowances: flat_allowance,
+        basic: basic, // Keep raw basic for reference if your UI expects it
+        allowances: pr_allowance, // Return the PRORATED allowance here
         reimbursements: totalReimbursementAmount,
         totalGross: parseFloat(totalGross.toFixed(2)),
       },
       deductions: {
         professionalTax,
-        taxDeductedAtSource: 0,
+        taxDeductedAtSource: 0, // Placeholder if you add TDS later
         other: 0,
         totalDeductions: professionalTax,
       },
@@ -463,54 +463,6 @@ export class PayrollService {
       session.endSession();
     }
   }
-
-  // async generateAllEmployeesPayroll(
-  //   fromDate: Date,
-  //   toDate: Date,
-  //   targetMonth: number,
-  //   targetYear: number,
-  //   processedById: string,
-  // ) {
-  //   const employees = await this.employeeService.getActiveEmployees();
-
-  //   if (!employees || employees.length === 0) {
-  //     throw new NotFoundException('No active employees found to process payroll.');
-  //   }
-
-  //   const results = {
-  //     totalProcessed: 0,
-  //     successful: 0,
-  //     failed: 0,
-  //     errors: [] as { employeeCode: string; error: string }[],
-  //   };
-
-  //   // console.log(`[Payroll Batch] Starting batch process for ${employees.length} employees...`);
-
-  //   for (const emp of employees) {
-  //     try {
-  //       await this.generateSingleEmployeePayroll(
-  //         emp._id.toString(),
-  //         fromDate,
-  //         toDate,
-  //         targetMonth,
-  //         targetYear,
-  //         processedById,
-  //       );
-  //       results.successful++;
-  //     } catch (error: any) {
-  //       results.failed++;
-  //       results.errors.push({
-  //         employeeCode: emp.employeeCode,
-  //         error: error.message || 'Unknown error occurred',
-  //       });
-  //       console.error(`[Payroll Batch] Failed for ${emp.employeeCode}:`, error.message);
-  //     }
-  //     results.totalProcessed++;
-  //   }
-
-  //   // console.log(`[Payroll Batch] Completed! Success: ${results.successful}, Failed: ${results.failed}`);
-  //   return results;
-  // }
 
   async generateAllEmployeesPayroll(
     fromDate: Date,

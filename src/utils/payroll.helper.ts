@@ -23,13 +23,14 @@ export const calculateSalarySplit = (
 
 // ─── 2. THE PROFESSIONAL TAX (PT) ENGINE ─────────────────────────────────────
 /**
- * Calculates Maharashtra Professional Tax.
- * CRITICAL FIX: PT is evaluated against the 'Base Salary', NOT the gross/prorated earnings.
- * * @param basicSalary - The SPLIT basic salary (from calculateSalarySplit), NOT total gross.
- * @param gender - 'male', 'female', or 'other'
- * @param monthIndex - 0-indexed month (0 = Jan, 1 = Feb, etc.)
+- Calculates Maharashtra Professional Tax.
+- UPDATED: PT is now evaluated against the ACTUAL earned gross salary for the month (prorated).
+- 
+- @param monthlyEarnings The total gross earned for the cycle (prorated basic + allowances).
+- @param gender 'male', 'female', or 'other'
+- @param monthIndex 0-indexed month (0 = Jan, 1 = Feb, etc.)
  */
-export const calculatePT = (basicSalary: number, gender: string, monthIndex: number): number => {
+export const calculatePT = (monthlyEarnings: number, gender: string, monthIndex: number): number => {
     const normalizedGender = gender?.toLowerCase();
     const isFebruary = monthIndex === 1;
 
@@ -37,7 +38,7 @@ export const calculatePT = (basicSalary: number, gender: string, monthIndex: num
     // FEMALE TIER
     // =========================
     if (normalizedGender === 'female') {
-        if (basicSalary <= 25000) return 0;
+        if (monthlyEarnings <= 25000) return 0;
         if (isFebruary) return 300;
         return 200;
     }
@@ -45,15 +46,13 @@ export const calculatePT = (basicSalary: number, gender: string, monthIndex: num
     // =========================
     // MALE / OTHER TIER
     // =========================
-    if (basicSalary <= 7500) return 0;
-    
-    // Note: Kept the 175 tier as per your original logic, 
-    // update this if Maharashtra formally drops the 10k bracket.
-    if (basicSalary <= 10000) return 175; 
+    if (monthlyEarnings <= 7999) return 0;
+
+    if (monthlyEarnings <= 10000) return 175;
 
     // Above 10,000
     if (isFebruary) return 300;
-    
+
     return 200;
 };
 
@@ -68,7 +67,7 @@ export const calculatePT = (basicSalary: number, gender: string, monthIndex: num
 export const calculateProratedAmount = (fullAmount: number, totalCycleDays: number, paidDays: number): number => {
     // Prevent division by zero just in case
     if (totalCycleDays === 0) return 0;
-    
+
     const dailyRate = fullAmount / totalCycleDays;
     return parseFloat((dailyRate * paidDays).toFixed(2));
 };
