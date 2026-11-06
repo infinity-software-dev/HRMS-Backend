@@ -353,7 +353,7 @@ export class HrWebController {
     return { success: true, message: 'Holiday added to calendar', data };
   }
 
-  @Delete('holidays/:id')
+  @Post('holidays/:id')
   async remove(@Param('id') id: string) {
     // Triggers the Soft Delete
     const result = await this.holidayService.toggleHolidayStatus(id);
