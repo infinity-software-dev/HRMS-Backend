@@ -14,7 +14,6 @@ import {
   Put,
   Query,
   Req,
-  Request,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -27,7 +26,6 @@ import { LeaveService } from '../leave/leave.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import 'multer';
 
-import { PayrollService } from '../payroll/payroll.service';
 import { ReimbursementService } from '../reimbursement/reimbursement.service';
 import { ChangePasswordDto } from '../employee/dto/change-password.dto';
 import { ComplaintService } from '../complaint/complaint.service';
@@ -39,7 +37,6 @@ import { UpsertAlertDto } from '../alert/dto/upsert-alert.dto';
 import { AlertService } from '../alert/alert.service';
 import { GurukulService } from '../gurukul/gurukul.service';
 import { DepartmentService } from '../department/department.service';
-import { GetVideosDto } from '../gurukul/dto/get-videos.dto';
 import { PositionService } from '../position/position.service';
 import {
   CreateVideoDto,
@@ -359,7 +356,7 @@ export class HrWebController {
   @Delete('holidays/:id')
   async remove(@Param('id') id: string) {
     // Triggers the Soft Delete
-    const result = await this.holidayService.softDelete(id);
+    const result = await this.holidayService.toggleHolidayStatus(id);
     return { success: true, ...result };
   }
 
@@ -470,8 +467,6 @@ export class HrWebController {
     return this.positionService.restore(id);
   }
 
-
-
   // ADD SINGLE RESPONSIBILITY
   @Post('position/:id/responsibility')
   async addPositionResponsibility(
@@ -488,7 +483,11 @@ export class HrWebController {
     @Param('index') index: string,
     @Body('responsibility') responsibility: string,
   ) {
-    return this.positionService.editResponsibility(id, parseInt(index, 10), responsibility);
+    return this.positionService.editResponsibility(
+      id,
+      parseInt(index, 10),
+      responsibility,
+    );
   }
 
   // DELETE SINGLE RESPONSIBILITY
@@ -499,5 +498,4 @@ export class HrWebController {
   ) {
     return this.positionService.removeResponsibility(id, parseInt(index, 10));
   }
-
 }

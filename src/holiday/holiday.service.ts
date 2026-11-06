@@ -50,20 +50,23 @@ export class HolidayService {
             .lean();
     }
 
-    // SOFT DELETE
-    async softDelete(id: string) {
-        const holiday = await this.holidayModel.findByIdAndUpdate(
-            id,
-            { isActive: false },
-            { new: true }
-        );
+    async toggleHolidayStatus(id: string) {
+    const holiday = await this.holidayModel.findById(id);
 
-        if (!holiday) {
-            throw new NotFoundException('Holiday not found');
-        }
-
-        return { message: 'Holiday successfully removed from calendar.' };
+    if (!holiday) {
+      throw new NotFoundException('Holiday not found');
     }
+
+    holiday.isActive = !holiday.isActive;
+    await holiday.save();
+
+    return {
+      message: holiday.isActive
+        ? 'Holiday successfully restored to calendar.'
+        : 'Holiday successfully removed from calendar.',
+      data: holiday,
+    };
+}
 
     async checkIsHoliday(dateString: string): Promise<boolean> {
         const holiday = await this.holidayModel.findOne({

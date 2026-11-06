@@ -1,12 +1,17 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { HolidayService } from './holiday.service';
-import { CreateHolidayDto } from './dto/create-holiday.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('api/app/holidays')
 @UseGuards(JwtAuthGuard)
 export class HolidayAppController {
-  constructor(private readonly holidayService: HolidayService) { }
+  constructor(private readonly holidayService: HolidayService) {}
 
   // e.g., GET /api/app/holidays?year=2026
   @Get()
